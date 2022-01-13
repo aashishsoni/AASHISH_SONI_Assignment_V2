@@ -46,6 +46,9 @@ class User(AbstractUser):
 
 class Country(models.Model):
     country_name = models.CharField(max_length=120, null=False, blank=False)
+    
+    def __str__(self):
+        return str(country_name)
 
 
 class Country_City(models.Model):
