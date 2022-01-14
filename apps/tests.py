@@ -32,7 +32,7 @@ class UserModelTest(APITestCase):
                                        last_name=fake.last_name(), is_active=True, password=generate_password())
         country = Country.objects.create(country_name=fake.country)
         country_city = Country_City.objects.create(
-            country=country, City=fake.city, Population='320120')
+            country=country, name=fake.city, Population='320120')
         UserProfile.objects.filter(user_id=_u1.id).update(gender=random.choice(
             ["Male", "Female"]), country=country_city.country.id, city=country_city.id)
         UserProfile.objects.filter(user_id=_u2.id).update(gender=random.choice(
@@ -101,7 +101,8 @@ class UserModelTest(APITestCase):
             "date": fake.date(),
             "product": 'Bulldog clip',
             "sales_number": fake.random_digit(),
-            "revenue": fake.pyfloat()
+            "revenue": fake.pyfloat(),
+            'user_id': User.objects.get(email="aashish.soni@systematixindia.com").id
         }
         response2 = self.client.post(
             "/api/v1/sales/", data, HTTP_AUTHORIZATION='Token ' + token.key)
@@ -157,7 +158,7 @@ class UserModelTest(APITestCase):
         token = Token.objects.get(
             user__email="aashish.soni@systematixindia.com")
         response2 = self.client.get(
-            "/api/v1/sales_statistics/", HTTP_AUTHORIZATION='Token ' + token.key)
+            "/api/v1/sale_statistics/", HTTP_AUTHORIZATION='Token ' + token.key)
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
 
     def test_user_logout(self):

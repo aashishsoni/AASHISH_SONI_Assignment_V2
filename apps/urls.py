@@ -24,5 +24,5 @@ urlpatterns = [
     path('countries/', countries, name='countries'),
     path('sales/', sales_data.as_view(), name='sales'),
     path('sales/<int:id>/', sales_data.as_view(), name='sales_delets'),
-    path('sales_statistics/', StatisticsAverageData, name='StatisticsAverageData'),
+    path('sale_statistics/', StatisticsAverageData, name='StatisticsAverageData'),
 ]

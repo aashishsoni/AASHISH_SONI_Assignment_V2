@@ -1,6 +1,6 @@
+from django.db.models import Max
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status
-from django.db.models import F
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import get_user_model, authenticate, logout
 from rest_framework.generics import GenericAPIView
@@ -23,7 +23,7 @@ def signup(request):
         return Response({'status': 'fail', 'message': 'The Password must be a combination of characters with numbers or special characters!'})
     if not User.objects.filter(email=request.data['email']).exists():
         User.objects.create_user(
-            email=request.data['email'], password=request.data['password'],
+            email=request.data['email'], username=request.data['email'], password=request.data['password'],
             first_name=request.data['first_name'], last_name=request.data['last_name'])
         return Response({'status': 'success', "message": "user create successfully"})
     return Response({'status': 'fail', "message": "this email is already register"})
@@ -62,8 +62,15 @@ class user_details(GenericAPIView):
     def get(self, request, id):
         """ This function used for get user details. """
         all_user_data = UserProfile.objects.filter(user_id=id).values(
-            'user_id', 'user__first_name', 'user__last_name', 'user__email', 'gender', 'age', 'country', 'city').annotate(user_first_name=F('user__first_name'))
-        return Response({'status': 'success', 'message': 'User details.', 'data': all_user_data})
+            'gender', 'age', 'country', 'city')
+        for user_data in all_user_data:
+            user = User.objects.get(id=id)
+            user_data['first_name'] = user.first_name
+            user_data['last_name'] = user.last_name
+            user_data['email'] = user.email
+            user_data['id'] = user.id
+            user_data['username'] = user.username
+        return Response(all_user_data[0])
 
     def patch(self, request, id):
         """ This function used for update user profile details. """
@@ -84,15 +91,16 @@ class user_details(GenericAPIView):
 
 
 @api_view(['GET'])
+@permission_classes([AllowAny])
 def countries(request):
     """ This function used for get all city details according to country. """
     rwc_data = []
     for country_data in Country.objects.all():
         all_data = {'id': country_data.id, 'name': country_data.country_name,
-                    'cities': Country_City.objects.filter(country_id=country_data.id).values()}
+                    'cities': Country_City.objects.filter(country_id=country_data.id).values('id', 'name')}
         rwc_data.append(all_data)
-    return Response({'status': 'success', 'message': "user data get successfully",
-                    'data': rwc_data}, status=status.HTTP_200_OK)
+
+    return Response(rwc_data, status=status.HTTP_200_OK)
 
 
 class sales_data(GenericAPIView):
@@ -105,18 +113,20 @@ class sales_data(GenericAPIView):
                 user=request.user).values()
         except Exception:
             return Response({'status': 'fail', 'message': "Sales data not available."}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'status': 'success', 'message': "Sales data get successfully.", 'data': all_sales_data})
+        return Response(all_sales_data)
 
     def post(self, request):
         """ This function used for save sales data according to user. """
         try:
-            sale_statistics_data = Sale_Statistics.objects.create(user=request.user, date=request.data['date'], product=request.data['product'],
+            sale_statistics_data = Sale_Statistics.objects.create(user_id=request.data['user_id'], date=request.data['date'], product=request.data['product'],
                                                                   sales_number=request.data['sales_number'], revenue=request.data['revenue'])
-            data = {'sale_statistics_data': sale_statistics_data.date, "product": sale_statistics_data.product,
-                    "sales_number": sale_statistics_data.sales_number, "revenue": sale_statistics_data.revenue}
+                        
+            data = {'id':sale_statistics_data.id,'date': sale_statistics_data.date, 
+            "product": sale_statistics_data.product, "sales_number": sale_statistics_data.sales_number, 
+            "revenue": sale_statistics_data.revenue, "user_id": sale_statistics_data.user_id}
         except Exception:
             return Response({'status': 'fail', 'message': "data not found", }, status=status.HTTP_404_NOT_FOUND)
-        return Response({'status': 'success', 'message': "user data get successfully", 'data': data}, status=status.HTTP_201_CREATED)
+        return Response(data, status=status.HTTP_201_CREATED)
 
     def patch(self, request, **kwargs):
         """ This function used for upadre sales data according to user. """
@@ -136,7 +146,7 @@ class sales_data(GenericAPIView):
             id=self.kwargs['id'])
         data = {"date": sale_statistics_data.date, "product": sale_statistics_data.product,
                 "sales_number": sale_statistics_data.sales_number, "revenue": sale_statistics_data.revenue}
-        return Response({'status': 'success', 'message': "user data get successfully", 'data': data}, status=status.HTTP_200_OK)
+        return Response(data, status=status.HTTP_200_OK)
 
     def put(self, request, id):
         """ This function used for upadre sales data according to user. """
@@ -148,7 +158,7 @@ class sales_data(GenericAPIView):
                     "sales_number": sale_statistics_data.sales_number, "revenue": sale_statistics_data.revenue}
         except Exception:
             return Response({'status': 'fail', 'message': "Sales data id not available."}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'status': 'success', 'message': "user data get successfully", 'data': data}, status=status.HTTP_200_OK)
+        return Response(data, status=status.HTTP_200_OK)
 
     def delete(self, request, id):
         """ This function used for delete sales data according to his id. """
@@ -156,16 +166,60 @@ class sales_data(GenericAPIView):
             Sale_Statistics.objects.get(id=id).delete()
         except Exception:
             return Response({'status': 'fail', 'message': "This Sales data id not available."}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'status': 'success', 'message': "Sales data deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+def Iterate_list(matrix):
+    flatten_matrix = []
+    for sublist in matrix:
+        for val in sublist:
+            flatten_matrix.append(val)
+    return flatten_matrix
 
 
 @api_view(['GET'])
 def StatisticsAverageData(request):
     """ This function used for get averge data accorning to user. """
-    sale_statistics_data = Sale_Statistics.objects.filter(
-        user=request.user).values()
-    average_data = 0
-    for statistics_data in sale_statistics_data:
-        average_data = average_data + statistics_data['revenue']
-    average_sales_for_current_user = average_data / len(sale_statistics_data)
-    return Response({'status': 'success', 'message': "user data get successfully", 'average_sales_for_current_user': average_sales_for_current_user})
+    all_uaser_statistics_data = Sale_Statistics.objects.all().values_list('revenue')
+    try:
+        average_sale_all_user = sum(Iterate_list(
+            all_uaser_statistics_data))/len(all_uaser_statistics_data)
+    except ZeroDivisionError:
+        pass
+
+    current_uaser_statistics_data = Sale_Statistics.objects.filter(
+        user=request.user).values_list('revenue')
+    try:
+        average_sales_for_current_user = sum(Iterate_list(
+            current_uaser_statistics_data))/len(current_uaser_statistics_data)
+    except ZeroDivisionError:
+        return Response({"average_sale_all_user": average_sale_all_user})
+    max_sales_data = Sale_Statistics.objects.filter(
+        user=request.user).aggregate(Max('revenue'))
+    max_sales_data_id = Sale_Statistics.objects.filter(
+        user=request.user, revenue=max_sales_data['revenue__max']).values('id', 'product', 'price').first()
+    max_higest_sales_number_data = Sale_Statistics.objects.filter(
+        user=request.user).aggregate(Max('sales_number'))
+    max_higest_sales_number_price_data = Sale_Statistics.objects.filter(
+        user=request.user, sales_number=max_higest_sales_number_data['sales_number__max']).values('product', 'price')
+    data = {
+        "average_sales_for_current_user": average_sales_for_current_user,
+        "average_sale_all_user": average_sale_all_user,
+
+        "highest_revenue_sale_for_current_user": {
+            "sale_id": max_sales_data_id['id'],
+            "revenue": max_sales_data['revenue__max']
+
+        },
+        "product_highest_revenue_for_current_user": {
+            "product_name": max_sales_data_id['product'],
+            "price": max_sales_data_id['price']
+        },
+
+        "product_highest_sales_number_for_current_user": {
+            "product_name": max_higest_sales_number_price_data[0]['product'],
+            "price": max_higest_sales_number_price_data[0]['price']
+        }
+    }
+
+    return Response(data)

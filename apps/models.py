@@ -46,14 +46,13 @@ class User(AbstractUser):
 
 class Country(models.Model):
     country_name = models.CharField(max_length=120, null=False, blank=False)
-    
+
     def __str__(self):
         return str(self.country_name)
 
-
 class Country_City(models.Model):
     country = models.ForeignKey(Country, related_name='city_details', on_delete=models.CASCADE)
-    City = models.CharField(max_length=120, blank=False, null=False)
+    name = models.CharField(max_length=120, blank=False, null=False)
     Population = models.CharField(max_length=120, null=True, blank=True)
 
 
@@ -72,6 +71,10 @@ class Sale_Statistics(models.Model):
     product = models.CharField(max_length=120, null=False, blank=False)
     sales_number = models.IntegerField()
     revenue = models.FloatField()
+    price = models.FloatField(default=0.0)
+
+    def __str__(self):
+        return str(self.user)
 
 
 @receiver(post_save, sender=User)
